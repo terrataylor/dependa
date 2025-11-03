@@ -1,14 +1,38 @@
 import { NextResponse } from 'next/server';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import nodemailer from 'nodemailer';
 
 export async function POST() {
   try {
     // This endpoint should be called by a cron job (e.g., Vercel Cron, GitHub Actions)
     // or Firebase Functions scheduled function at 9am daily
 
+    // Check if Nodemailer is configured
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+      console.error('SMTP configuration is not complete');
+      return NextResponse.json({
+        error: 'Email service not configured. Please add SMTP settings to your .env.local file.',
+      }, { status: 500 });
+    }
+
+    // Initialize Nodemailer transporter
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD,
+      },
+    });
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+
     // Get all calendars
     const calendarsSnapshot = await getDocs(collection(db, 'calendars'));
+    let emailsSent = 0;
     
     for (const calendarDoc of calendarsSnapshot.docs) {
       const calendar = calendarDoc.data();
@@ -51,6 +75,7 @@ export async function POST() {
       // Send emails to each user
       for (const [, userData] of todosByUser) {
         const emailContent = {
+          from: fromEmail,
           to: userData.email,
           subject: `Your daily tasks for ${calendar.name}`,
           html: `
@@ -68,7 +93,7 @@ export async function POST() {
                   `).join('')}
                 </ul>
               </div>
-              <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard" 
+              <a href="${appUrl}/dashboard" 
                  style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; margin: 16px 0;">
                 View Full Calendar
               </a>
@@ -76,16 +101,22 @@ export async function POST() {
           `,
         };
         
-        console.log('Daily reminder email would be sent:', emailContent);
+        console.log('Sending daily reminder to:', userData.email);
         
-        // TODO: Integrate with actual email service
-        // await sgMail.send(emailContent);
+        try {
+          const info = await transporter.sendMail(emailContent);
+          console.log('Email sent successfully to', userData.email, ':', info.messageId);
+          emailsSent++;
+        } catch (emailError) {
+          console.error('Failed to send email to', userData.email, ':', emailError);
+        }
       }
     }
 
     return NextResponse.json({
       success: true,
       message: 'Daily reminders sent',
+      emailsSent,
     });
   } catch (error) {
     console.error('Error sending daily reminders:', error);

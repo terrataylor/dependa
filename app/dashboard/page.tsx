@@ -10,7 +10,9 @@ import AddTodoModal from '@/components/modals/AddTodoModal';
 import AddConditionalEventModal from '@/components/modals/AddConditionalEventModal';
 import ShareCalendarModal from '@/components/modals/ShareCalendarModal';
 import UploadProofModal from '@/components/modals/UploadProofModal';
-import { LogOut, Share2, CheckSquare, Calendar as CalendarIcon, Sparkles } from 'lucide-react';
+import EventDetailsModal from '@/components/modals/EventDetailsModal';
+import { LogOut, Share2, CheckSquare, Calendar as CalendarIcon, Sparkles, Info } from 'lucide-react';
+import Link from 'next/link';
 import {
   getUserCalendars,
   createCalendar,
@@ -24,6 +26,7 @@ import {
   getCalendarConditionalEvents,
   updateConditionalEvent,
   getUser,
+  deleteEvent,
 } from '@/lib/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
@@ -44,6 +47,8 @@ export default function DashboardPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showUploadProofModal, setShowUploadProofModal] = useState(false);
   const [selectedTodoForProof, setSelectedTodoForProof] = useState<TodoItem | null>(null);
+  const [showEventDetailsModal, setShowEventDetailsModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +72,8 @@ export default function DashboardPage() {
         // Store token in localStorage for now (in production, store in Firestore)
         localStorage.setItem('google_calendar_token', googleToken);
         
-        // Sync calendar
-        syncGoogleCalendarEvents(googleToken);
+        // Store token to sync after calendar is loaded
+        sessionStorage.setItem('pending_sync_token', googleToken);
         
         // Clean up URL
         window.history.replaceState({}, '', '/dashboard');
@@ -81,6 +86,16 @@ export default function DashboardPage() {
       }
     }
   }, [user]);
+  
+  // Sync after calendar is loaded
+  useEffect(() => {
+    const pendingToken = sessionStorage.getItem('pending_sync_token');
+    if (calendar && pendingToken) {
+      console.log('✅ Calendar loaded, starting sync...');
+      sessionStorage.removeItem('pending_sync_token');
+      syncGoogleCalendarEvents(pendingToken);
+    }
+  }, [calendar]);
   
   const syncGoogleCalendarEvents = async (token: string) => {
     if (!calendar) {
@@ -201,13 +216,43 @@ export default function DashboardPage() {
       setEvents(calendarEvents);
       setTodos(calendarTodos);
       
-      // Load shared users
-      if (userCalendar.sharedWith.length > 0) {
-        const users = await Promise.all(
-          userCalendar.sharedWith.map(share => getUser(share.userId))
-        );
-        setSharedUsers(users.filter(u => u !== null) as User[]);
+      // Load shared users (including the calendar owner)
+      const allUsers: User[] = [];
+      
+      // Add the current user (owner) to the list
+      if (user) {
+        allUsers.push({
+          uid: user.uid,
+          email: user.email || '',
+          displayName: user.displayName || user.email || 'You',
+          photoURL: user.photoURL || undefined,
+        });
       }
+      
+      // Add shared users
+      if (userCalendar.sharedWith.length > 0) {
+        for (const share of userCalendar.sharedWith) {
+          // If we have a userId, try to get the full user profile
+          if (share.userId) {
+            const sharedUser = await getUser(share.userId);
+            if (sharedUser) {
+              allUsers.push(sharedUser);
+              continue;
+            }
+          }
+          
+          // Otherwise, create a temporary user object from the email
+          // This handles users who haven't logged in yet
+          allUsers.push({
+            uid: share.email, // Use email as temporary uid
+            email: share.email,
+            displayName: share.email.split('@')[0], // Use email prefix as display name
+            photoURL: undefined,
+          });
+        }
+      }
+      
+      setSharedUsers(allUsers);
       
       // Check for conditional events that should be triggered
       checkConditionalEvents(calendarConditionalEvents, userCalendar.id);
@@ -387,16 +432,45 @@ export default function DashboardPage() {
   };
 
   const handleShareCalendar = async (email: string, canEdit: boolean) => {
-    if (!calendar) return;
+    if (!calendar || !user) return;
     
     try {
       // In a real app, you'd look up the user by email first
       // For now, we'll create a placeholder
       await shareCalendar(calendar.id, email, '', canEdit);
-      alert(`Calendar shared with ${email}`);
+      
+      // Send invitation email
+      try {
+        const response = await fetch('/api/send-share-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: email,
+            calendarName: calendar.name,
+            inviterName: user.displayName || user.email || 'A user',
+            calendarId: calendar.id,
+          }),
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          alert(`Calendar shared with ${email}. Invitation email sent!`);
+        } else {
+          console.error('Failed to send email:', data.error);
+          alert(`Calendar shared with ${email}, but failed to send invitation email. They can still access it.`);
+        }
+      } catch (emailError) {
+        console.error('Error sending email:', emailError);
+        alert(`Calendar shared with ${email}, but failed to send invitation email. They can still access it.`);
+      }
+      
       await loadData();
     } catch (error) {
       console.error('Error sharing calendar:', error);
+      alert('Failed to share calendar. Please try again.');
     }
   };
 
@@ -446,6 +520,21 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('Error starting OAuth flow:', error);
       alert('Failed to start Google Calendar sync. Check console for details.');
+    }
+  };
+
+  const handleEventClick = (event: CalendarEvent) => {
+    setSelectedEvent(event);
+    setShowEventDetailsModal(true);
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    try {
+      await deleteEvent(eventId);
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      alert('Failed to delete event. Please try again.');
     }
   };
 
@@ -551,6 +640,14 @@ export default function DashboardPage() {
                   alt="Profile"
                   className="sm:hidden w-10 h-10 rounded-full border-2 border-blue-500"
                 />
+                <Link
+                  href="/about"
+                  className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors border border-gray-300"
+                  title="About Dependa"
+                >
+                  <Info className="w-4 h-4" />
+                  <span className="hidden sm:inline">About</span>
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors border border-gray-300"
@@ -573,7 +670,7 @@ export default function DashboardPage() {
             <Calendar
               events={events}
               onAddEvent={() => setShowAddEventModal(true)}
-              onEventClick={(event) => console.log('Event clicked:', event)}
+              onEventClick={handleEventClick}
               onSyncGoogleCalendar={handleSyncGoogleCalendar}
             />
           </div>
@@ -636,6 +733,16 @@ export default function DashboardPage() {
           todoTitle={selectedTodoForProof.title}
         />
       )}
+      
+      <EventDetailsModal
+        isOpen={showEventDetailsModal}
+        onClose={() => {
+          setShowEventDetailsModal(false);
+          setSelectedEvent(null);
+        }}
+        event={selectedEvent}
+        onDelete={handleDeleteEvent}
+      />
     </div>
   );
 }

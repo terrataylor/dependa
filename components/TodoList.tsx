@@ -174,34 +174,34 @@ function TodoItemComponent({
 
           {/* Meta Info */}
           <div className="flex items-center gap-3 mt-2 flex-wrap">
-            {/* Assigned User */}
-            {sharedUsers.length > 0 && (
+            {/* Assigned User Dropdown - Always show */}
+            <div className="flex items-center gap-2">
+              <User className="w-3 h-3 text-gray-500" />
               <select
                 value={todo.assignedTo || ''}
                 onChange={(e) => onAssignUser(todo.id, e.target.value)}
-                className="text-xs px-2 py-1 border border-gray-300 rounded bg-white text-gray-700"
+                className={`
+                  text-xs px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none
+                  ${todo.assignedTo 
+                    ? 'border-blue-300 bg-blue-50 text-blue-700 font-medium' 
+                    : 'border-gray-300 bg-white text-gray-600'
+                  }
+                `}
               >
-                <option value="">Unassigned</option>
+                <option value="">Assign to...</option>
                 {sharedUsers.map(user => (
                   <option key={user.uid} value={user.uid}>
-                    {user.displayName}
+                    {user.displayName || user.email}
                   </option>
                 ))}
               </select>
-            )}
-
-            {assignedUser && (
-              <div className="flex items-center gap-1 text-xs text-gray-600">
-                <User className="w-3 h-3" />
-                <span>{assignedUser.displayName}</span>
-              </div>
-            )}
+            </div>
 
             {/* Upload Proof Button */}
             {todo.completed && !todo.proofOfCompletionUrl && (
               <button
                 onClick={() => onUploadProof(todo.id)}
-                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
               >
                 <Upload className="w-3 h-3" />
                 Upload Proof
@@ -210,7 +210,7 @@ function TodoItemComponent({
 
             {/* Has Proof Indicator */}
             {todo.proofOfCompletionUrl && (
-              <div className="flex items-center gap-1 text-xs text-green-600">
+              <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
                 <FileText className="w-3 h-3" />
                 Proof attached
               </div>

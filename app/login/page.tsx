@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { signInWithGoogleRedirect, checkRedirectResult } from '@/lib/auth-methods';
 
@@ -61,6 +62,12 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">Dependa</h1>
           <p className="text-gray-600">Conditional Calendar for Overthinkers</p>
+          <Link 
+            href="/about" 
+            className="text-sm text-blue-600 hover:text-blue-700 underline mt-2 inline-block"
+          >
+            Learn more about Dependa
+          </Link>
         </div>
 
         {error && (

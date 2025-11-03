@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, FileText, Download, Calendar, User, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, FileText, Download, Calendar, User, CheckCircle2, Info } from 'lucide-react';
+import Link from 'next/link';
 import { getUserCalendars, getCalendarTodos } from '@/lib/firestore';
 import { format } from 'date-fns';
 import type { TodoItem } from '@/lib/types';
@@ -59,19 +60,29 @@ export default function CompletedPage() {
       {/* Header */}
       <header className="bg-white shadow-md">
         <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">Completed Tasks</h1>
-              <p className="text-sm text-gray-600">
-                {completedTodos.length} {completedTodos.length === 1 ? 'task' : 'tasks'} completed
-              </p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">Completed Tasks</h1>
+                <p className="text-sm text-gray-600">
+                  {completedTodos.length} {completedTodos.length === 1 ? 'task' : 'tasks'} completed
+                </p>
+              </div>
             </div>
+            <Link
+              href="/about"
+              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors border border-gray-300"
+              title="About Dependa"
+            >
+              <Info className="w-4 h-4" />
+              <span className="hidden sm:inline">About</span>
+            </Link>
           </div>
         </div>
       </header>
@@ -112,9 +123,31 @@ export default function CompletedPage() {
                           </p>
                         )}
                         {todo.proofOfCompletionUrl && (
-                          <div className="flex items-center gap-1 text-sm text-green-600 mt-1">
-                            <FileText className="w-4 h-4" />
-                            <span>Proof attached</span>
+                          <div className="mt-2">
+                            {/* Thumbnail preview for images */}
+                            {todo.proofOfCompletionUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                              <div className="flex items-center gap-2">
+                                <img
+                                  src={todo.proofOfCompletionUrl}
+                                  alt="Proof thumbnail"
+                                  className="w-16 h-16 object-cover rounded border border-gray-200"
+                                />
+                                <div className="flex items-center gap-1 text-sm text-green-600">
+                                  <FileText className="w-4 h-4" />
+                                  <span>Image attached</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
+                                  <FileText className="w-8 h-8 text-gray-400" />
+                                </div>
+                                <div className="flex items-center gap-1 text-sm text-green-600">
+                                  <FileText className="w-4 h-4" />
+                                  <span>File attached</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -168,34 +201,51 @@ export default function CompletedPage() {
                         Proof of Completion
                       </h4>
                       
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-sm text-gray-600 mb-3">
-                          {selectedTodo.proofOfCompletionName}
-                        </p>
+                      <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-gray-600">
+                            {selectedTodo.proofOfCompletionName}
+                          </p>
+                          <a
+                            href={selectedTodo.proofOfCompletionUrl}
+                            download
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors"
+                          >
+                            <Download className="w-4 h-4" />
+                            Download
+                          </a>
+                        </div>
                         
+                        {/* Full size preview */}
                         {selectedTodo.proofOfCompletionUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                          <div className="mb-3">
+                          <div className="bg-white rounded-lg p-2 border border-gray-200">
                             <img
                               src={selectedTodo.proofOfCompletionUrl}
                               alt="Proof of completion"
-                              className="max-w-full h-auto rounded-lg border border-gray-200"
+                              className="max-w-full h-auto rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => window.open(selectedTodo.proofOfCompletionUrl, '_blank')}
+                              title="Click to open in new tab"
                             />
                           </div>
+                        ) : selectedTodo.proofOfCompletionUrl.match(/\.pdf$/i) ? (
+                          <div className="bg-white rounded-lg p-8 border-2 border-dashed border-gray-300">
+                            <div className="text-center">
+                              <FileText className="w-16 h-16 text-red-500 mx-auto mb-3" />
+                              <p className="text-sm font-medium text-gray-700 mb-1">PDF Document</p>
+                              <p className="text-xs text-gray-500">Click download to view</p>
+                            </div>
+                          </div>
                         ) : (
-                          <div className="flex items-center justify-center p-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
-                            <FileText className="w-12 h-12 text-gray-400" />
+                          <div className="bg-white rounded-lg p-8 border-2 border-dashed border-gray-300">
+                            <div className="text-center">
+                              <FileText className="w-16 h-16 text-gray-400 mx-auto mb-3" />
+                              <p className="text-sm font-medium text-gray-700 mb-1">Document File</p>
+                              <p className="text-xs text-gray-500">Click download to view</p>
+                            </div>
                           </div>
                         )}
-                        
-                        <a
-                          href={selectedTodo.proofOfCompletionUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                        >
-                          <Download className="w-4 h-4" />
-                          Download File
-                        </a>
                       </div>
                     </div>
                   )}

@@ -1,12 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
+import nodemailer from 'nodemailer';
 
 export async function POST(request: NextRequest) {
   try {
     const { to, calendarName, inviterName, calendarId } = await request.json();
 
-    // In a production app, you would use a service like SendGrid, AWS SES, or Resend
-    // For now, we'll just log the email details
+    // Check if Nodemailer is configured
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+      console.error('SMTP configuration is not complete');
+      return NextResponse.json({
+        error: 'Email service not configured. Please add SMTP settings to your .env.local file.',
+      }, { status: 500 });
+    }
+
+    // Initialize Nodemailer transporter
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD,
+      },
+    });
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
     const emailContent = {
+      from: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER,
       to,
       subject: `${inviterName} shared a calendar with you`,
       html: `
@@ -14,7 +35,7 @@ export async function POST(request: NextRequest) {
           <h2>You've been invited to view a calendar</h2>
           <p><strong>${inviterName}</strong> has shared the calendar <strong>"${calendarName}"</strong> with you.</p>
           <p>Click the link below to access the calendar:</p>
-          <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard?calendar=${calendarId}" 
+          <a href="${appUrl}/dashboard?calendar=${calendarId}" 
              style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; margin: 16px 0;">
             View Calendar
           </a>
@@ -25,17 +46,16 @@ export async function POST(request: NextRequest) {
       `,
     };
 
-    console.log('Email would be sent:', emailContent);
+    console.log('Sending email to:', to);
 
-    // TODO: Integrate with actual email service
-    // Example with SendGrid:
-    // const sgMail = require('@sendgrid/mail');
-    // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-    // await sgMail.send(emailContent);
+    const info = await transporter.sendMail(emailContent);
+
+    console.log('Email sent successfully:', info.messageId);
 
     return NextResponse.json({
       success: true,
       message: 'Invitation email sent',
+      emailId: info.messageId,
     });
   } catch (error) {
     console.error('Error sending email:', error);

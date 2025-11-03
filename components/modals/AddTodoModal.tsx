@@ -96,25 +96,28 @@ export default function AddTodoModal({ isOpen, onClose, onSave, sharedUsers }: A
             />
           </div>
 
-          {sharedUsers.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Assign To
-              </label>
-              <select
-                value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-blue-600"
-              >
-                <option value="">Unassigned</option>
-                {sharedUsers.map(user => (
-                  <option key={user.uid} value={user.uid}>
-                    {user.displayName} ({user.email})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Assign To
+            </label>
+            <select
+              value={assignedTo}
+              onChange={(e) => setAssignedTo(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-blue-600"
+            >
+              <option value="">Not assigned</option>
+              {sharedUsers.map(user => (
+                <option key={user.uid} value={user.uid}>
+                  {user.displayName || user.email}
+                </option>
+              ))}
+            </select>
+            {sharedUsers.length === 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                Share your calendar to assign tasks to others
+              </p>
+            )}
+          </div>
 
           <div className="flex gap-3 pt-4">
             <button
