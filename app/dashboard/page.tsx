@@ -51,6 +51,8 @@ export default function DashboardPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   
   const [dataLoading, setDataLoading] = useState(true);
+  const [syncingCalendar, setSyncingCalendar] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -104,15 +106,19 @@ export default function DashboardPage() {
     }
     
     try {
+      setSyncingCalendar(true);
+      setSyncProgress(10);
       console.log('🔄 Starting Google Calendar sync...');
       
       // Call our API to sync events
+      setSyncProgress(20);
       const response = await fetch('/api/google-calendar/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken: token }),
       });
       
+      setSyncProgress(40);
       const data = await response.json();
       console.log('📥 Received data from Google:', data);
       
@@ -123,8 +129,15 @@ export default function DashboardPage() {
         let imported = 0;
         let skipped = 0;
         const errors: string[] = [];
+        const totalEvents = data.events.length;
         
-        for (const gEvent of data.events) {
+        for (let i = 0; i < data.events.length; i++) {
+          const gEvent = data.events[i];
+          
+          // Update progress (40% to 90% during import)
+          const importProgress = 40 + (i / totalEvents) * 50;
+          setSyncProgress(Math.round(importProgress));
+          
           try {
             // Check if event already exists (avoid duplicates)
             const existingEvents = await getCalendarEvents(calendar.id);
@@ -161,15 +174,20 @@ export default function DashboardPage() {
         
         console.log(`✅ Sync complete: ${imported} imported, ${skipped} skipped`);
         
+        setSyncProgress(95);
+        
+        // Reload calendar data
+        await loadData();
+        
+        setSyncProgress(100);
+        
         let message = `✅ Successfully synced Google Calendar!\n\n`;
+        message += `📅 Date range: Today + 1 year forward\n`;
         message += `Imported: ${imported} new events\n`;
         if (skipped > 0) message += `Skipped: ${skipped} duplicates\n`;
         if (errors.length > 0) message += `Errors: ${errors.length}\n`;
         
         alert(message);
-        
-        // Reload calendar data
-        await loadData();
       } else {
         console.error('❌ Sync failed:', data);
         alert('Failed to sync Google Calendar events. Check console for details.');
@@ -177,6 +195,9 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('❌ Error syncing calendar:', error);
       alert('Error syncing Google Calendar. Check console for details.');
+    } finally {
+      setSyncingCalendar(false);
+      setSyncProgress(0);
     }
   };
 
@@ -672,6 +693,8 @@ export default function DashboardPage() {
               onAddEvent={() => setShowAddEventModal(true)}
               onEventClick={handleEventClick}
               onSyncGoogleCalendar={handleSyncGoogleCalendar}
+              syncingCalendar={syncingCalendar}
+              syncProgress={syncProgress}
             />
           </div>
           

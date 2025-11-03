@@ -10,9 +10,11 @@ interface CalendarProps {
   onAddEvent: () => void;
   onEventClick: (event: CalendarEvent) => void;
   onSyncGoogleCalendar: () => void;
+  syncingCalendar?: boolean;
+  syncProgress?: number;
 }
 
-export default function Calendar({ events, onAddEvent, onEventClick, onSyncGoogleCalendar }: CalendarProps) {
+export default function Calendar({ events, onAddEvent, onEventClick, onSyncGoogleCalendar, syncingCalendar, syncProgress }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const monthStart = startOfMonth(currentDate);
@@ -41,9 +43,16 @@ export default function Calendar({ events, onAddEvent, onEventClick, onSyncGoogl
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={onSyncGoogleCalendar}
-            className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs sm:text-sm font-medium"
+            disabled={syncingCalendar}
+            className={`
+              px-3 py-2 rounded-lg transition-colors text-xs sm:text-sm font-medium
+              ${syncingCalendar 
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+              }
+            `}
           >
-            Sync Calendar
+            {syncingCalendar ? 'Syncing...' : 'Sync Calendar'}
           </button>
           <button
             onClick={onAddEvent}
@@ -54,6 +63,21 @@ export default function Calendar({ events, onAddEvent, onEventClick, onSyncGoogl
           </button>
         </div>
       </div>
+
+      {/* Sync Progress Bar */}
+      {syncingCalendar && (
+        <div className="mb-4 flex-shrink-0">
+          <div className="bg-gray-200 rounded-full h-2.5 overflow-hidden">
+            <div 
+              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${syncProgress}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-600 mt-1 text-center">
+            Syncing Google Calendar... {syncProgress}%
+          </p>
+        </div>
+      )}
 
       {/* Month Navigation */}
       <div className="flex items-center justify-between mb-3 flex-shrink-0">

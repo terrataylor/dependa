@@ -19,19 +19,19 @@ export async function POST(request: NextRequest) {
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-    // Get events from Google Calendar (past 30 days + future 90 days)
+    // Get events from Google Calendar (today + future 1 year)
     const now = new Date();
-    const pastDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)); // 30 days ago
-    const futureDate = new Date(now.getTime() + (90 * 24 * 60 * 60 * 1000)); // 90 days from now
+    now.setHours(0, 0, 0, 0); // Start of today
+    const futureDate = new Date(now.getTime() + (365 * 24 * 60 * 60 * 1000)); // 1 year from now
     
     console.log('📅 Fetching events from Google Calendar...');
-    console.log('Date range:', pastDate.toISOString(), 'to', futureDate.toISOString());
+    console.log('Date range:', now.toISOString(), 'to', futureDate.toISOString());
     
     const response = await calendar.events.list({
       calendarId: 'primary',
-      timeMin: pastDate.toISOString(),
+      timeMin: now.toISOString(),
       timeMax: futureDate.toISOString(),
-      maxResults: 250,
+      maxResults: 500, // Increased for 1 year of data
       singleEvents: true,
       orderBy: 'startTime',
     });
